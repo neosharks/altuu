@@ -1,0 +1,13 @@
+# Build output
+build/
+
+# Generated icon intermediates (regenerable via tools/make_icon.swift)
+tools/make_icon
+tools/AppIcon.iconset/
+
+# macOS
+.DS_Store
+
+# Signing material never lives in-repo (kept in ~/.altuu-signing)
+*.p12
+*.pem
