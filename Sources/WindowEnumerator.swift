@@ -22,13 +22,20 @@ enum WindowEnumerator {
         }
 
         let myPid = ProcessInfo.processInfo.processIdentifier
-        var iconCache: [pid_t: NSImage?] = [:]
-        return makeWindows(from: raw, selfPID: myPid) { pid in
-            if let cached = iconCache[pid] { return cached }
-            let icon = NSRunningApplication(processIdentifier: pid)?.icon
-            iconCache[pid] = icon
-            return icon
+        var appCache: [pid_t: NSRunningApplication?] = [:]
+        func app(_ pid: pid_t) -> NSRunningApplication? {
+            if let cached = appCache[pid] { return cached }
+            let a = NSRunningApplication(processIdentifier: pid)
+            appCache[pid] = a
+            return a
         }
+        return makeWindows(from: raw,
+                           selfPID: myPid,
+                           // Only .regular apps own real user windows. Menu-bar/agent
+                           // apps (.accessory / .prohibited) are dropped even if they
+                           // keep an invisible helper window around.
+                           isRegularApp: { app($0)?.activationPolicy == .regular },
+                           iconFor: { app($0)?.icon })
     }
 
     // Minimum on-screen size for a window to be worth listing (px).
@@ -40,6 +47,7 @@ enum WindowEnumerator {
     /// Extracted so the filtering rules are unit-testable without the WindowServer.
     static func makeWindows(from raw: [[String: Any]],
                             selfPID: pid_t,
+                            isRegularApp: (pid_t) -> Bool = { _ in true },
                             iconFor: (pid_t) -> NSImage? = { _ in nil }) -> [WindowInfo] {
         var result: [WindowInfo] = []
 
@@ -49,6 +57,10 @@ enum WindowEnumerator {
 
             guard let pidValue = dict[kCGWindowOwnerPID as String] as? pid_t,
                   pidValue != selfPID else { continue }
+
+            // Only regular (Dock-present) apps own switchable windows. This drops
+            // menu-bar / agent / accessory apps that carry a stray helper window.
+            if !isRegularApp(pidValue) { continue }
 
             let alpha = dict[kCGWindowAlpha as String] as? Double ?? 1.0
             if alpha < minAlpha { continue }

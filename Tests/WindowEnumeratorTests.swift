@@ -81,4 +81,21 @@ func testWindowEnumerator() {
         }
     T.eq(askedPIDs, [321], "icon provider queried with the window's pid")
     T.check(withIcon.first?.appIcon === dummy, "provided icon is attached to the window")
+
+    // Window-less menu-bar / agent apps (non-regular) are dropped even with a valid window.
+    let regularPIDs: Set<pid_t> = [100]   // 100 is a regular app; 200 is a menu-bar agent
+    let scoped = WindowEnumerator.makeWindows(from: [
+        win(id: 60, pid: 100, owner: "Finder", name: "Downloads"),   // regular → kept
+        win(id: 61, pid: 200, owner: "Stats", name: "menubar"),      // accessory → dropped
+        win(id: 62, pid: 200, owner: "Stats"),                       // accessory → dropped
+    ], selfPID: selfPID, isRegularApp: { regularPIDs.contains($0) })
+    T.eq(scoped.count, 1, "only the regular app's window survives the app-policy filter")
+    T.eq(scoped.first?.appName, "Finder", "the surviving window belongs to the regular app")
+
+    // If every window belongs to non-regular apps, nothing is shown.
+    let allAgents = WindowEnumerator.makeWindows(from: [
+        win(id: 70, pid: 200, owner: "Stats", name: "x"),
+        win(id: 71, pid: 201, owner: "Rectangle", name: "y"),
+    ], selfPID: selfPID, isRegularApp: { _ in false })
+    T.eq(allAgents.count, 0, "no regular apps → empty list (no window-less agents shown)")
 }

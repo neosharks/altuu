@@ -18,23 +18,33 @@ enum WindowActivator {
 
     static func activate(_ info: WindowInfo) {
         let axApp = AXUIElementCreateApplication(info.pid)
-        let target = findWindow(axApp: axApp, info: info)
 
-        // Bring the owning app forward.
-        AXUIElementSetAttributeValue(axApp, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
-        NSRunningApplication(processIdentifier: info.pid)?.activate(options: [.activateAllWindows])
+        if let window = findWindow(axApp: axApp, info: info) {
+            // Un-minimize if needed.
+            var minimizedRef: CFTypeRef?
+            if AXUIElementCopyAttributeValue(window, kAXMinimizedAttribute as CFString, &minimizedRef) == .success,
+               (minimizedRef as? Bool) == true {
+                AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
+            }
 
-        guard let window = target else { return }
-
-        // Un-minimize if needed.
-        var minimizedRef: CFTypeRef?
-        if AXUIElementCopyAttributeValue(window, kAXMinimizedAttribute as CFString, &minimizedRef) == .success,
-           (minimizedRef as? Bool) == true {
-            AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
+            // Focus THIS window and raise it *before* activating the app. Raising a
+            // specific window that lives on another Space is what makes macOS switch
+            // to that Space when the app is then activated.
+            AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, kCFBooleanTrue)
+            AXUIElementSetAttributeValue(window, kAXFocusedAttribute as CFString, kCFBooleanTrue)
+            AXUIElementPerformAction(window, kAXRaiseAction as CFString)
         }
 
-        AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, kCFBooleanTrue)
-        AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+        AXUIElementSetAttributeValue(axApp, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
+
+        // Plain activate (NOT .activateAllWindows — that would pull a current-Space
+        // window forward and cancel the cross-Space switch to the raised window).
+        let app = NSRunningApplication(processIdentifier: info.pid)
+        if #available(macOS 14.0, *) {
+            app?.activate()
+        } else {
+            app?.activate(options: [])
+        }
     }
 
     private static func findWindow(axApp: AXUIElement, info: WindowInfo) -> AXUIElement? {

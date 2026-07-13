@@ -107,28 +107,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         menu.addItem(.separator())
 
-        // Window scope (which windows the switcher lists).
-        let scopeHeader = NSMenuItem(title: "Show windows from", action: nil, keyEquivalent: "")
-        scopeHeader.isEnabled = false
-        scopeHeader.attributedTitle = NSAttributedString(
-            string: "Show windows from",
-            attributes: [.font: NSFont.systemFont(ofSize: 11),
-                         .foregroundColor: NSColor.secondaryLabelColor])
-        menu.addItem(scopeHeader)
-
-        let all = Settings.shared.showAllSpaces
-        let thisDesktop = NSMenuItem(title: "This desktop only",
-                                     action: #selector(scopeThisDesktop), keyEquivalent: "")
-        thisDesktop.target = self
-        thisDesktop.state = all ? .off : .on
-        menu.addItem(thisDesktop)
-
-        let allDesktops = NSMenuItem(title: "All desktops",
-                                     action: #selector(scopeAllDesktops), keyEquivalent: "")
-        allDesktops.target = self
-        allDesktops.state = all ? .on : .off
-        menu.addItem(allDesktops)
-        menu.addItem(.separator())
+        // NOTE: multi-desktop ("All desktops") scope is temporarily hidden while
+        // cross-Space switching is worked out. The switcher lists current-desktop
+        // windows only. Setting/enumerator support is retained for later.
 
         // Launch at login toggle.
         let login = NSMenuItem(title: "Launch at Login",
@@ -191,9 +172,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     // MARK: - Actions
-
-    @objc private func scopeThisDesktop() { Settings.shared.showAllSpaces = false }
-    @objc private func scopeAllDesktops() { Settings.shared.showAllSpaces = true }
 
     @objc private func openAccessibility() {
         Permissions.ensureAccessibility(prompt: true)

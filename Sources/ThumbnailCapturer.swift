@@ -73,6 +73,9 @@ enum ThumbnailCapturer {
     }
 
     private static func shot(of window: SCWindow) async -> NSImage? {
+        // Note: don't gate on window.isOnScreen — that skips occluded (behind
+        // other) windows on the current Space too. ScreenCaptureKit composites
+        // those fine; only genuinely empty captures are dropped below.
         let filter = SCContentFilter(desktopIndependentWindow: window)
         let config = SCStreamConfiguration()
 
@@ -85,6 +88,23 @@ enum ThumbnailCapturer {
 
         guard let cg = try? await SCScreenshotManager.captureImage(
             contentFilter: filter, configuration: config) else { return nil }
+        guard !isBlank(cg) else { return nil }
         return NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height))
+    }
+
+    /// Cheap empty-frame detector: downsample to 1×1 and check it isn't fully
+    /// transparent. Only transparency means "nothing rendered" — we deliberately
+    /// do NOT treat dark frames as blank, or dark-themed apps (terminals, dark
+    /// IDEs) would lose their previews.
+    private static func isBlank(_ cg: CGImage) -> Bool {
+        var pixel: [UInt8] = [0, 0, 0, 0]
+        let space = CGColorSpaceCreateDeviceRGB()
+        guard let ctx = CGContext(data: &pixel, width: 1, height: 1,
+                                  bitsPerComponent: 8, bytesPerRow: 4, space: space,
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
+            return false
+        }
+        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+        return pixel[3] < 8   // alpha ~0 → nothing was drawn
     }
 }

@@ -250,7 +250,8 @@ final class SwitcherController {
         if visible {
             step(backward: backward)
         } else {
-            windows = WindowEnumerator.currentWindows(allSpaces: Settings.shared.showAllSpaces)
+            // Multi-desktop scope is parked for now — current desktop only.
+            windows = WindowEnumerator.currentWindows(allSpaces: false)
             guard !windows.isEmpty else { return }
             selectedIndex = WindowSelection.initialIndex(count: windows.count, backward: backward)
             show()
