@@ -23,8 +23,11 @@ exact one you want.
   - release `⌥ Option` — switch to the highlighted window
   - `Esc` — cancel
 - **Click to pick** — click any preview to jump straight to it.
-- **Polished menu-bar agent** — live permission status with green/orange indicators,
-  one-click links to the right Settings pane, and a Launch-at-Login toggle. No Dock icon.
+- **Polished menu-bar agent** — always-visible pinned status item, live permission
+  status with green/orange indicators, one-click links to the right Settings pane,
+  and a Launch-at-Login toggle. No Dock icon.
+- **Window scope** — choose in the menu whether the switcher lists windows from
+  *this desktop only* (default) or *all desktops* (Spaces). Persisted.
 - **Custom app icon**, fade-in animation, accent-colored selection.
 
 ## Build
@@ -63,19 +66,33 @@ Both settings are reachable from the menu-bar icon.
 keeps the TCC grant valid across rebuilds. Without it, the app is ad-hoc signed and
 you must re-grant Accessibility after each rebuild.
 
+## Tests
+
+Pure logic (grid geometry, selection stepping, window filtering, settings,
+display-title fallback) is isolated from AppKit so it runs headless:
+
+```bash
+./run_tests.sh
+```
+
+A standalone assert-based runner (no Xcode / XCTest bundle needed) — 54 checks.
+
 ## Known limitations
 
-- Shows windows on the **current Space** only.
 - Fixed hotkey (⌥Tab); not yet configurable.
+- Off-Space windows show an app-icon fallback if a live preview isn't available.
 
 ## Layout
 
 | File | Responsibility |
 |------|----------------|
-| `WindowEnumerator.swift` | List on-screen windows (`CGWindowList`) |
+| `WindowEnumerator.swift` | List windows (`CGWindowList`) + pure `makeWindows` filter |
+| `GridSolver.swift` | Pure grid geometry + selection stepping (unit-tested) |
 | `ThumbnailCapturer.swift` | Per-window previews (ScreenCaptureKit), cached + prewarmed |
 | `HotKeyManager.swift` | Global ⌥Tab / arrows / Return interception (`CGEventTap`) |
 | `SwitcherPanel.swift` | Overlay UI: grid of previews + header + selection |
 | `WindowActivator.swift` | Raise the chosen window (Accessibility API) |
+| `Settings.swift` | Persisted window-scope setting |
 | `AppDelegate.swift` | Wiring, permissions, menu bar, launch-at-login |
 | `tools/make_icon.swift` | Generates `AppIcon.icns` |
+| `Tests/` | Headless logic test suite |

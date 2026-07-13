@@ -112,13 +112,8 @@ private final class SwitcherView: NSView {
     private let pad: CGFloat = 18
     private let headerH: CGFloat = 30      // title strip at the top
 
-    // Tiles stay big. The grid grows into more rows; cells only shrink
-    // (uniformly, keeping them as large as possible) if the grid would
-    // overflow the screen.
-    private let baseCellW: CGFloat = 360
-    private let baseCellH: CGFloat = 270
-    private let preferredMaxColumns = 4
-    private let minCellW: CGFloat = 240        // never shrink below this — keep tiles clearly big
+    // Pure geometry lives in GridSolver (see GridSolverTests).
+    private let solver = GridSolver()
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -148,37 +143,8 @@ private final class SwitcherView: NSView {
 
     required init?(coder: NSCoder) { fatalError("no coder") }
 
-    private struct Grid {
-        let cols: Int, rows: Int
-        let cellW: CGFloat, cellH: CGFloat
-        let size: NSSize
-    }
-
-    private func layoutMetrics() -> Grid {
-        let n = max(windows.count, 1)
-
-        // Columns at the big base size: whatever fits across the screen, capped.
-        let fitCols = max(1, Int((maxRowWidth - pad * 2 + gap) / (baseCellW + gap)))
-        let capCols = max(1, min(fitCols, preferredMaxColumns))
-        let rows = Int(ceil(Double(n) / Double(capCols)))
-        // Even out the last row (e.g. 8 -> 4x2, not 5+3).
-        let cols = min(n, Int(ceil(Double(n) / Double(rows))))
-
-        func size(_ cw: CGFloat, _ ch: CGFloat) -> NSSize {
-            NSSize(width: pad * 2 + CGFloat(cols) * cw + CGFloat(cols - 1) * gap,
-                   height: pad * 2 + CGFloat(rows) * ch + CGFloat(rows - 1) * gap)
-        }
-
-        var full = size(baseCellW, baseCellH)
-        // Shrink uniformly only if the grid overflows the screen budget,
-        // but never below minCellW — tiles must stay clearly big.
-        let floor = minCellW / baseCellW
-        let scale = max(floor, min(1, min(maxRowWidth / full.width, maxColHeight / full.height)))
-        let cw = baseCellW * scale
-        let ch = baseCellH * scale
-        if scale != 1 { full = size(cw, ch) }
-
-        return Grid(cols: cols, rows: rows, cellW: cw, cellH: ch, size: full)
+    private func layoutMetrics() -> GridSolver.Result {
+        solver.solve(count: windows.count, maxRowWidth: maxRowWidth, maxColHeight: maxColHeight)
     }
 
     func preferredSize() -> NSSize {
@@ -236,10 +202,11 @@ private final class SwitcherView: NSView {
         let m = layoutMetrics()
         let gridTop = bounds.height - headerH
         for (i, cell) in cells.enumerated() {
-            let row = i / m.cols
-            let col = i % m.cols
-            let x = pad + CGFloat(col) * (m.cellW + gap)
-            let y = gridTop - pad - CGFloat(row + 1) * m.cellH - CGFloat(row) * gap
+            let row = CGFloat(i / m.cols)
+            let col = CGFloat(i % m.cols)
+            let x: CGFloat = pad + col * (m.cellW + gap)
+            let rowsFromTop: CGFloat = (row + 1) * m.cellH + row * gap
+            let y: CGFloat = gridTop - pad - rowsFromTop
             cell.frame = NSRect(x: x, y: y, width: m.cellW, height: m.cellH)
         }
     }
@@ -285,11 +252,7 @@ final class SwitcherController {
         } else {
             windows = WindowEnumerator.currentWindows(allSpaces: Settings.shared.showAllSpaces)
             guard !windows.isEmpty else { return }
-            if windows.count == 1 {
-                selectedIndex = 0
-            } else {
-                selectedIndex = backward ? windows.count - 1 : 1
-            }
+            selectedIndex = WindowSelection.initialIndex(count: windows.count, backward: backward)
             show()
             captureThumbnails()
         }
@@ -304,9 +267,7 @@ final class SwitcherController {
     }
 
     private func step(backward: Bool) {
-        let n = windows.count
-        guard n > 0 else { return }
-        selectedIndex = ((selectedIndex + (backward ? -1 : 1)) % n + n) % n
+        selectedIndex = WindowSelection.step(index: selectedIndex, count: windows.count, backward: backward)
     }
 
     private func show() {

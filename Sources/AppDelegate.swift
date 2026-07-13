@@ -52,6 +52,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func setupStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        // Keep the menu-bar item pinned/visible and remember its slot across launches.
+        item.behavior = []                 // not removable by ⌘-drag off the bar
+        item.isVisible = true
+        item.autosaveName = "AltuuStatusItem"
         if let button = item.button {
             let cfg = NSImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
             button.image = NSImage(systemSymbolName: "square.stack.3d.up.fill",
